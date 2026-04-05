@@ -15,8 +15,9 @@
 ## 技术栈
 
 - Spring Boot 3.2
-- SQLite（可切换至其他关系型数据库）
+- MySQL（可切换至其他关系型数据库）
 - JPA / Hibernate
+- YAML 配置
 - 原生 HTML/CSS/JS（无前端框架）
 
 ## 快速开始
@@ -176,18 +177,22 @@ ARRAY 类型的子节点会作为 JSON 数组中的对象输出：
 
 ## 数据库切换
 
-当前使用 SQLite，如需切换到其他数据库（如 MySQL、PostgreSQL）：
+当前使用 MySQL，配置文件为 `application.yml`。如需切换到其他数据库：
 
 1. 修改 `pom.xml` 添加对应驱动依赖
-2. 更新 `application.properties`：
+2. 更新 `application.yml`：
 
-```properties
-# MySQL 示例
-spring.datasource.url=jdbc:mysql://localhost:3306/api_mock
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
-spring.datasource.username=root
-spring.datasource.password=your_password
-spring.jpa.database-platform=org.hibernate.dialect.MySQLDialect
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/api_mock?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: update
 ```
 
 ## 项目结构
