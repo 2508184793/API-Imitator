@@ -5,6 +5,7 @@ import com.example.apimock.dto.ApiConfigResponse;
 import com.example.apimock.dto.FieldConfigDto;
 import com.example.apimock.entity.ApiConfig;
 import com.example.apimock.entity.FieldConfig;
+import com.example.apimock.entity.FieldType;
 import com.example.apimock.repository.ApiConfigRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,14 +93,40 @@ public class ApiConfigService {
         FieldConfig field = new FieldConfig();
         field.setFieldName(dto.getName());
         field.setFieldType(dto.getType());
-        field.setFieldValue(dto.getValue());
         field.setApiConfig(apiConfig);
         field.setParentField(parent);
 
-        if (dto.getChildren() != null) {
-            for (FieldConfigDto childDto : dto.getChildren()) {
-                FieldConfig child = toEntity(childDto, apiConfig, field);
-                field.getChildren().add(child);
+        // 处理 ARRAY 类型的 arrayItems
+        if (dto.getType() == FieldType.ARRAY && dto.getArrayItems() != null && !dto.getArrayItems().isEmpty()) {
+            // 判断是否是简单的逗号分隔值（基本类型数组）还是 JSON 对象数组
+            String firstValue = dto.getArrayItems().get(0).getValue();
+            boolean hasJsonObjects = firstValue != null && (firstValue.trim().startsWith("{") || firstValue.trim().startsWith("["));
+
+            if (hasJsonObjects) {
+                // JSON 对象数组：为每个项创建子节点
+                for (FieldConfigDto.ArrayItemDto item : dto.getArrayItems()) {
+                    FieldConfig itemChild = new FieldConfig();
+                    itemChild.setFieldName("item");
+                    itemChild.setFieldType(FieldType.STRING);
+                    itemChild.setFieldValue(item.getValue());
+                    itemChild.setApiConfig(apiConfig);
+                    itemChild.setParentField(field);
+                    field.getChildren().add(itemChild);
+                }
+            } else {
+                // 基本类型数组：用逗号分隔存储
+                String arrayValue = dto.getArrayItems().stream()
+                        .map(FieldConfigDto.ArrayItemDto::getValue)
+                        .collect(Collectors.joining(","));
+                field.setFieldValue(arrayValue);
+            }
+        } else {
+            field.setFieldValue(dto.getValue());
+            if (dto.getChildren() != null) {
+                for (FieldConfigDto childDto : dto.getChildren()) {
+                    FieldConfig child = toEntity(childDto, apiConfig, field);
+                    field.getChildren().add(child);
+                }
             }
         }
         return field;

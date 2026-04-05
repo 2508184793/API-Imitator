@@ -10,7 +10,6 @@ public class FieldConfigDto {
 
     private Long id;
 
-    @NotBlank(message = "字段名不能为空")
     private String name;
 
     @NotNull(message = "字段类型不能为空")
@@ -19,6 +18,8 @@ public class FieldConfigDto {
     private String value;
 
     private List<FieldConfigDto> children;
+
+    private List<ArrayItemDto> arrayItems;
 
     public FieldConfigDto() {}
 
@@ -36,4 +37,14 @@ public class FieldConfigDto {
 
     public List<FieldConfigDto> getChildren() { return children; }
     public void setChildren(List<FieldConfigDto> children) { this.children = children; }
+
+    public List<ArrayItemDto> getArrayItems() { return arrayItems; }
+    public void setArrayItems(List<ArrayItemDto> arrayItems) { this.arrayItems = arrayItems; }
+
+    public static class ArrayItemDto {
+        private String value;
+
+        public String getValue() { return value; }
+        public void setValue(String value) { this.value = value; }
+    }
 }

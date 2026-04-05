@@ -17,7 +17,7 @@ public class FieldConfig {
     @JoinColumn(name = "api_config_id", nullable = false)
     private ApiConfig apiConfig;
 
-    @Column(name = "field_name", nullable = false)
+    @Column(name = "field_name")
     private String fieldName;
 
     @Enumerated(EnumType.STRING)

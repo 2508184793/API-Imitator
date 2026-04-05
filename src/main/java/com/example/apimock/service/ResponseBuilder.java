@@ -45,7 +45,7 @@ public class ResponseBuilder {
                 parent.put(name, value);
                 break;
             case INTEGER:
-                parent.put(name, value != null ? Integer.parseInt(value) : 0);
+                parent.put(name, value != null ? Long.parseLong(value) : 0L);
                 break;
             case DOUBLE:
                 parent.put(name, value != null ? Double.parseDouble(value) : 0.0);
@@ -63,20 +63,38 @@ public class ResponseBuilder {
                 ArrayNode arrayNode = parent.putArray(name);
                 // 优先使用 children 构建数组
                 if (field.getChildren() != null && !field.getChildren().isEmpty()) {
-                    for (FieldConfig child : field.getChildren()) {
+                    // Join children values and parse as JSON array
+                    StringBuilder combined = new StringBuilder("[");
+                    java.util.List<FieldConfig> childList = new java.util.ArrayList<>(field.getChildren());
+                    for (int i = 0; i < childList.size(); i++) {
+                        FieldConfig child = childList.get(i);
                         String childValue = resolveValue(child.getFieldValue(), pathParams);
-                        switch (child.getFieldType()) {
-                            case INTEGER:
-                                arrayNode.add(childValue != null && !childValue.isEmpty() ? Integer.parseInt(childValue) : 0);
-                                break;
-                            case DOUBLE:
-                                arrayNode.add(childValue != null && !childValue.isEmpty() ? Double.parseDouble(childValue) : 0.0);
-                                break;
-                            case BOOLEAN:
-                                arrayNode.add(childValue != null && !childValue.isEmpty() ? Boolean.parseBoolean(childValue) : false);
-                                break;
-                            default:
-                                arrayNode.add(childValue != null ? childValue : "");
+                        if (childValue != null && !childValue.isEmpty()) {
+                            String trimmed = childValue.trim();
+                            if (trimmed.startsWith("{")) {
+                                // It's a JSON object string - remove surrounding quotes and unescape
+                                if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+                                    trimmed = trimmed.substring(1, trimmed.length() - 1);
+                                    trimmed = trimmed.replace("\\\"", "\"").replace("\\\\", "\\");
+                                }
+                                combined.append(trimmed);
+                            } else {
+                                // Primitive value - quote it
+                                combined.append("\"").append(childValue.replace("\"", "\\\"")).append("\"");
+                            }
+                        }
+                        if (i < childList.size() - 1) {
+                            combined.append(",");
+                        }
+                    }
+                    combined.append("]");
+                    try {
+                        arrayNode.addAll((ArrayNode) objectMapper.readTree(combined.toString()));
+                    } catch (Exception e) {
+                        // Fallback: add as strings
+                        for (FieldConfig child : childList) {
+                            String childValue = resolveValue(child.getFieldValue(), pathParams);
+                            arrayNode.add(childValue != null ? childValue : "");
                         }
                     }
                 } else if (value != null && !value.isEmpty()) {
@@ -106,7 +124,7 @@ public class ResponseBuilder {
 
     private void addArrayItem(ArrayNode arrayNode, String value) {
         if (value.matches("-?\\d+")) {
-            arrayNode.add(Integer.parseInt(value));
+            arrayNode.add(Long.parseLong(value));
         } else if (value.matches("-?\\d+\\.\\d+")) {
             arrayNode.add(Double.parseDouble(value));
         } else if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {

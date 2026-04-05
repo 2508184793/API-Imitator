@@ -37,3 +37,14 @@ Thumbs.db
 *.tmp
 *.swp
 *~
+
+# Node / npm
+node_modules/
+package.json
+package-lock.json
+
+# Playwright
+.playwright-mcp/
+
+# Test
+test.json
