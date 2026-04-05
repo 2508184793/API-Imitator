@@ -1,0 +1,16 @@
+# MySQL 配置
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/api_mock?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+# 服务端口
+server:
+  port: 8080
