@@ -12,6 +12,7 @@ build/
 
 # IDE
 .idea/
+.claude/
 *.iml
 *.ipr
 *.iws
