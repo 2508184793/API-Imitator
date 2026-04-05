@@ -16,7 +16,7 @@ mvn clean package
 mvn spring-boot:run
 
 # Or run the JAR directly
-java -jar target/api-mock-1.0-SNAPSHOT.jar
+java -jar target/api-imitator-1.0-SNAPSHOT.jar
 ```
 
 ## Architecture
@@ -34,7 +34,7 @@ The application has two main request handling paths:
 
 ### Database
 
-- SQLite by default (`api-mock.db`), configured in `application.properties`
+- SQLite by default (`api-imitator.db`), configured in `application.properties`
 - Switch to other relational databases by updating `spring.datasource.url`, `spring.datasource.driver-class-name`, and `spring.jpa.database-platform`
 - `spring.jpa.hibernate.ddl-auto=update` auto-creates tables
 

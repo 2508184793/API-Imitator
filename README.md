@@ -1,4 +1,4 @@
-# API Mock Server
+# API-Imitator
 
 一个基于 Spring Boot 的 API Mock 服务器，允许通过配置文件或 Web UI 动态配置 API 返回数据。
 
