@@ -85,7 +85,7 @@ curl http://localhost:8080/api/test/123
 | DOUBLE | 小数 | 1.23 |
 | BOOLEAN | 布尔值 | true/false |
 | OBJECT | 嵌套对象 | {"name": "value"} |
-| ARRAY | 数组 | 多个值逗号分隔 |
+| ARRAY | 数组 | 逗号分隔值或嵌套对象数组 |
 
 ## 配置示例
 
@@ -150,6 +150,29 @@ curl http://localhost:8080/api/test/123
 ```
 
 响应：`{"ids": [1, 2, 3, 4, 5]}`
+
+### 数组类型（嵌套对象）
+
+ARRAY 类型的子节点会作为 JSON 数组中的对象输出：
+
+```json
+{
+  "path": "/api/users",
+  "method": "GET",
+  "fields": [
+    {"name": "users", "type": "ARRAY", "children": [
+      {"name": "name", "type": "STRING", "value": "张三"},
+      {"name": "age", "type": "INTEGER", "value": "25"}
+    ]},
+    {"name": "users", "type": "ARRAY", "children": [
+      {"name": "name", "type": "STRING", "value": "李四"},
+      {"name": "age", "type": "INTEGER", "value": "30"}
+    ]}
+  ]
+}
+```
+
+响应：`{"users": [{"name": "张三", "age": 25}, {"name": "李四", "age": 30}]}`
 
 ## 数据库切换
 
