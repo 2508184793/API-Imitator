@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Mock 配置管理</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #333; margin-bottom: 20px; }
+
+        .card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+        .card h2 { color: #666; font-size: 16px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #666; font-size: 14px; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none; border-color: #007bff;
+        }
+
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #1e7e34; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+
+        .api-list { display: grid; gap: 15px; }
+        .api-item { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .api-info { flex: 1; }
+        .api-path { font-size: 16px; font-weight: bold; color: #333; }
+        .api-method { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; margin-left: 10px; }
+        .api-method.GET { background: #28a745; color: white; }
+        .api-method.POST { background: #007bff; color: white; }
+        .api-method.PUT { background: #ffc107; color: #333; }
+        .api-method.DELETE { background: #dc3545; color: white; }
+        .api-desc { color: #888; font-size: 13px; margin-top: 5px; }
+        .api-actions { display: flex; gap: 10px; }
+
+        .field-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; padding: 10px; background: #f8f8f8; border-radius: 4px; }
+        .field-row input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .field-row input.name { flex: 2; }
+        .field-row input.value { flex: 2; }
+        .field-row select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; width: 120px; }
+        .field-row .children { margin-left: 30px; margin-top: 10px; flex-basis: 100%; }
+        .field-row .child-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; padding: 8px; background: #fff; border: 1px dashed #ccc; border-radius: 4px; }
+        .field-row .child-row input { padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+        .field-row .child-row input.name { width: 120px; }
+        .field-row .child-row input.value { width: 150px; }
+
+        .test-section { margin-top: 20px; padding: 15px; background: #e9f5ff; border-radius: 4px; }
+        .test-section input { padding: 10px; border: 1px solid #b8daff; border-radius: 4px; width: 300px; }
+        .test-result { margin-top: 15px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 4px; max-height: 300px; overflow: auto; }
+        .test-result pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 8px; padding: 25px; width: 700px; max-height: 80vh; overflow: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header h3 { color: #333; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #888; }
+        .modal-footer { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+
+        .empty { text-align: center; color: #888; padding: 40px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>API Mock 配置管理</h1>
+
+        <div class="card">
+            <h2>接口列表</h2>
+            <div id="apiList" class="api-list">
+                <div class="empty">暂无配置，点击下方按钮添加</div>
+            </div>
+            <button class="btn btn-primary" onclick="openModal()" style="margin-top: 15px;">+ 添加 API 配置</button>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">添加 API 配置</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="configForm">
+                <input type="hidden" id="editId">
+                <div class="form-group">
+                    <label>接口路径 (如 /api/test/{id})</label>
+                    <input type="text" id="path" placeholder="/api/test/{id}" required>
+                </div>
+                <div class="form-group">
+                    <label>HTTP 方法</label>
+                    <select id="method">
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>描述</label>
+                    <input type="text" id="description" placeholder="接口描述">
+                </div>
+                <div class="form-group">
+                    <label>字段配置</label>
+                    <div id="fieldsContainer"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addField()" style="margin-top: 10px;">+ 添加字段</button>
+                </div>
+            </form>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveConfig()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Modal -->
+    <div id="testModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>测试接口</h3>
+                <button class="modal-close" onclick="closeTestModal()">&times;</button>
+            </div>
+            <div class="test-section">
+                <input type="text" id="testUrl" placeholder="输入完整 URL">
+                <button class="btn btn-success" onclick="testApi()">发送请求</button>
+            </div>
+            <div class="test-result">
+                <pre id="testResult">响应结果将显示在这里...</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/configs';
+        let configs = [];
+        let editingId = null;
+
+        // 加载列表
+        async function loadList() {
+            try {
+                const res = await fetch(API_BASE);
+                configs = await res.json();
+                renderList();
+            } catch (e) {
+                console.error('加载失败', e);
+            }
+        }
+
+        function renderList() {
+            const list = document.getElementById('apiList');
+            if (configs.length === 0) {
+                list.innerHTML = '<div class="empty">暂无配置，点击下方按钮添加</div>';
+                return;
+            }
+            list.innerHTML = configs.map(c => `
+                <div class="api-item">
+                    <div class="api-info">
+                        <span class="api-path">${escapeHtml(c.path)}</span>
+                        <span class="api-method ${c.method}">${c.method}</span>
+                        <div class="api-desc">${escapeHtml(c.description || '')}</div>
+                    </div>
+                    <div class="api-actions">
+                        <button class="btn btn-success" onclick="testConfig(${c.id})">测试</button>
+                        <button class="btn btn-secondary" onclick="editConfig(${c.id})">编辑</button>
+                        <button class="btn btn-danger" onclick="deleteConfig(${c.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function openModal(id = null) {
+            editingId = id;
+            document.getElementById('modal').classList.add('active');
+            document.getElementById('fieldsContainer').innerHTML = '';
+
+            if (id) {
+                document.getElementById('modalTitle').textContent = '编辑 API 配置';
+                const config = configs.find(c => c.id === id);
+                document.getElementById('editId').value = id;
+                document.getElementById('path').value = config.path;
+                document.getElementById('method').value = config.method;
+                document.getElementById('description').value = config.description || '';
+                if (config.fields) {
+                    config.fields.forEach(f => addField(f));
+                }
+            } else {
+                document.getElementById('modalTitle').textContent = '添加 API 配置';
+                document.getElementById('configForm').reset();
+                document.getElementById('editId').value = '';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+            editingId = null;
+        }
+
+        function addField(fieldData = null) {
+            const container = document.getElementById('fieldsContainer');
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'field-row';
+            fieldDiv.innerHTML = `
+                <input type="text" class="name" placeholder="字段名" value="${fieldData ? fieldData.name : ''}">
+                <select class="type">
+                    <option value="STRING" ${fieldData && fieldData.type === 'STRING' ? 'selected' : ''}>STRING</option>
+                    <option value="INTEGER" ${fieldData && fieldData.type === 'INTEGER' ? 'selected' : ''}>INTEGER</option>
+                    <option value="DOUBLE" ${fieldData && fieldData.type === 'DOUBLE' ? 'selected' : ''}>DOUBLE</option>
+                    <option value="BOOLEAN" ${fieldData && fieldData.type === 'BOOLEAN' ? 'selected' : ''}>BOOLEAN</option>
+                    <option value="OBJECT" ${fieldData && fieldData.type === 'OBJECT' ? 'selected' : ''}>OBJECT</option>
+                    <option value="ARRAY" ${fieldData && fieldData.type === 'ARRAY' ? 'selected' : ''}>ARRAY</option>
+                </select>
+                <input type="text" class="value" placeholder="值 (可用 {param})" value="${fieldData ? fieldData.value || '' : ''}">
+                <button type="button" class="btn btn-secondary" onclick="addChild(this)">+子字段</button>
+                <button type="button" class="btn btn-danger" onclick="removeField(this)">删除</button>
+                <div class="children"></div>
+            `;
+            container.appendChild(fieldDiv);
+
+            // 如果有子字段
+            if (fieldData && fieldData.children && fieldData.children.length > 0) {
+                const childrenDiv = fieldDiv.querySelector('.children');
+                fieldData.children.forEach(child => {
+                    const childDiv = document.createElement('div');
+                    childDiv.className = 'child-row';
+                    childDiv.innerHTML = `
+                        <input type="text" class="name" placeholder="子字段名" value="${child.name}">
+                        <select class="type">
+                            <option value="STRING" ${child.type === 'STRING' ? 'selected' : ''}>STRING</option>
+                            <option value="INTEGER" ${child.type === 'INTEGER' ? 'selected' : ''}>INTEGER</option>
+                            <option value="DOUBLE" ${child.type === 'DOUBLE' ? 'selected' : ''}>DOUBLE</option>
+                            <option value="BOOLEAN" ${child.type === 'BOOLEAN' ? 'selected' : ''}>BOOLEAN</option>
+                            <option value="OBJECT" ${child.type === 'OBJECT' ? 'selected' : ''}>OBJECT</option>
+                            <option value="ARRAY" ${child.type === 'ARRAY' ? 'selected' : ''}>ARRAY</option>
+                        </select>
+                        <input type="text" class="value" placeholder="值" value="${child.value || ''}">
+                        <button type="button" class="btn btn-danger" onclick="removeSubField(this)">×</button>
+                    `;
+                    childrenDiv.appendChild(childDiv);
+                });
+            }
+        }
+
+        function removeField(btn) {
+            btn.parentElement.remove();
+        }
+
+        function addChild(btn) {
+            const fieldRow = btn.parentElement;
+            let childrenDiv = fieldRow.querySelector('.children');
+            if (!childrenDiv) {
+                childrenDiv = document.createElement('div');
+                childrenDiv.className = 'children';
+                fieldRow.appendChild(childrenDiv);
+            }
+            const childDiv = document.createElement('div');
+            childDiv.className = 'child-row';
+            childDiv.innerHTML = `
+                <input type="text" class="name" placeholder="子字段名">
+                <select class="type">
+                    <option value="STRING">STRING</option>
+                    <option value="INTEGER">INTEGER</option>
+                    <option value="DOUBLE">DOUBLE</option>
+                    <option value="BOOLEAN">BOOLEAN</option>
+                    <option value="OBJECT">OBJECT</option>
+                    <option value="ARRAY">ARRAY</option>
+                </select>
+                <input type="text" class="value" placeholder="值">
+                <button type="button" class="btn btn-danger" onclick="removeSubField(this)">×</button>
+            `;
+            childrenDiv.appendChild(childDiv);
+        }
+
+        function removeSubField(btn) {
+            btn.parentElement.remove();
+        }
+
+        function collectFields() {
+            const fields = [];
+            document.querySelectorAll('#fieldsContainer .field-row').forEach(row => {
+                const field = {
+                    name: row.querySelector('.name').value,
+                    type: row.querySelector('.type').value,
+                    value: row.querySelector('.value').value
+                };
+
+                const childRows = row.querySelectorAll('.children .child-row');
+                if (childRows.length > 0) {
+                    field.children = Array.from(childRows).map(childRow => ({
+                        name: childRow.querySelector('.name').value,
+                        type: childRow.querySelector('.type').value,
+                        value: childRow.querySelector('.value').value
+                    }));
+                }
+
+                if (field.name) fields.push(field);
+            });
+            return fields;
+        }
+
+        async function saveConfig() {
+            const data = {
+                path: document.getElementById('path').value,
+                method: document.getElementById('method').value,
+                description: document.getElementById('description').value,
+                fields: collectFields()
+            };
+
+            const id = document.getElementById('editId').value;
+            const url = id ? `${API_BASE}/${id}` : API_BASE;
+            const method = id ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (res.ok) {
+                    closeModal();
+                    loadList();
+                } else {
+                    alert('保存失败');
+                }
+            } catch (e) {
+                alert('保存失败: ' + e.message);
+            }
+        }
+
+        function editConfig(id) {
+            openModal(id);
+        }
+
+        async function deleteConfig(id) {
+            if (!confirm('确定要删除这个配置吗?')) return;
+            try {
+                await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+                loadList();
+            } catch (e) {
+                alert('删除失败');
+            }
+        }
+
+        let currentTestMethod = 'GET';
+
+        async function testConfig(id) {
+            const config = configs.find(c => c.id === id);
+            currentTestMethod = config.method;
+            document.getElementById('testUrl').value = config.path.replace('{id}', '123');
+            document.getElementById('testResult').textContent = '响应结果将显示在这里...';
+            document.getElementById('testModal').classList.add('active');
+        }
+
+        function closeTestModal() {
+            document.getElementById('testModal').classList.remove('active');
+        }
+
+        async function testApi() {
+            const url = document.getElementById('testUrl').value;
+            document.getElementById('testResult').textContent = '加载中...';
+            try {
+                const res = await fetch(url, { method: currentTestMethod });
+                const text = await res.text();
+                document.getElementById('testResult').textContent = `状态: ${res.status}\n\n${formatJson(text)}`;
+            } catch (e) {
+                document.getElementById('testResult').textContent = '请求失败: ' + e.message;
+            }
+        }
+
+        function formatJson(str) {
+            try {
+                return JSON.stringify(JSON.parse(str), null, 2);
+            } catch {
+                return str;
+            }
+        }
+
+        // 初始化
+        loadList();
+    </script>
+</body>
+</html>

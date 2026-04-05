@@ -1,0 +1,39 @@
+package com.example.apimock.dto;
+
+import com.example.apimock.entity.FieldType;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+import java.util.List;
+
+public class FieldConfigDto {
+
+    private Long id;
+
+    @NotBlank(message = "字段名不能为空")
+    private String name;
+
+    @NotNull(message = "字段类型不能为空")
+    private FieldType type;
+
+    private String value;
+
+    private List<FieldConfigDto> children;
+
+    public FieldConfigDto() {}
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public FieldType getType() { return type; }
+    public void setType(FieldType type) { this.type = type; }
+
+    public String getValue() { return value; }
+    public void setValue(String value) { this.value = value; }
+
+    public List<FieldConfigDto> getChildren() { return children; }
+    public void setChildren(List<FieldConfigDto> children) { this.children = children; }
+}
