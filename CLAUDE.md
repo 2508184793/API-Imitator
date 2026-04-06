@@ -43,8 +43,9 @@ The application has two main request handling paths:
 `FieldType` enum: `STRING`, `INTEGER`, `DOUBLE`, `BOOLEAN`, `OBJECT`, `ARRAY`
 
 - `OBJECT` type supports recursive nested children
-- `ARRAY` values are comma-separated strings
+- `ARRAY` values are comma-separated strings, OR nested object arrays when using `children`
 - Field values support path parameter references like `{paramName}` which get substituted at response time
+- `INTEGER` uses `Long` type to handle large values
 
 ### Frontend
 
