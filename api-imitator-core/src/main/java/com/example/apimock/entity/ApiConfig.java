@@ -22,6 +22,19 @@ public class ApiConfig {
     @Column(name = "description")
     private String description;
 
+    // ========== v2 新增功能字段 ==========
+    @Column(name = "status_code")
+    private Integer statusCode = 200;
+
+    @Column(name = "response_headers", length = 2000)
+    private String responseHeaders;
+
+    @Column(name = "delay_ms")
+    private Integer delayMs = 0;
+
+    @Column(name = "enabled")
+    private Boolean enabled = true;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -55,6 +68,18 @@ public class ApiConfig {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public Integer getStatusCode() { return statusCode; }
+    public void setStatusCode(Integer statusCode) { this.statusCode = statusCode; }
+
+    public String getResponseHeaders() { return responseHeaders; }
+    public void setResponseHeaders(String responseHeaders) { this.responseHeaders = responseHeaders; }
+
+    public Integer getDelayMs() { return delayMs; }
+    public void setDelayMs(Integer delayMs) { this.delayMs = delayMs; }
+
+    public Boolean getEnabled() { return enabled; }
+    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

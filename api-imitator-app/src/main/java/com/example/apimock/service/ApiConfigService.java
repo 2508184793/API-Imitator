@@ -7,6 +7,10 @@ import com.example.apimock.entity.ApiConfig;
 import com.example.apimock.entity.FieldConfig;
 import com.example.apimock.entity.FieldType;
 import com.example.apimock.repository.ApiConfigRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,23 +22,32 @@ import java.util.stream.Collectors;
 @Service
 public class ApiConfigService {
 
+    private static final Logger log = LoggerFactory.getLogger(ApiConfigService.class);
     private final ApiConfigRepository apiConfigRepository;
+    private final ResponseBuilder responseBuilder;
 
-    public ApiConfigService(ApiConfigRepository apiConfigRepository) {
+    public ApiConfigService(ApiConfigRepository apiConfigRepository, ResponseBuilder responseBuilder) {
         this.apiConfigRepository = apiConfigRepository;
+        this.responseBuilder = responseBuilder;
     }
 
+    @Cacheable(value = "apiConfigs", key = "'all'")
     public List<ApiConfigResponse> findAll() {
+        log.debug("查询所有 API 配置");
         return apiConfigRepository.findAll().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "apiConfigEntities", key = "'all'")
     public List<ApiConfig> findAllEntities() {
+        log.debug("查询所有 API 配置实体");
         return apiConfigRepository.findAll();
     }
 
+    @Cacheable(value = "apiConfigs", key = "#id")
     public Optional<ApiConfigResponse> findById(Long id) {
+        log.debug("查询 API 配置: id={}", id);
         return apiConfigRepository.findById(id)
                 .map(this::toResponse);
     }
@@ -44,11 +57,25 @@ public class ApiConfigService {
     }
 
     @Transactional
+    @CacheEvict(value = {"apiConfigs", "apiConfigEntities"}, allEntries = true)
     public ApiConfigResponse create(ApiConfigRequest request) {
+        log.info("创建新的 API 配置: {} {}", request.getMethod(), request.getPath());
         ApiConfig apiConfig = new ApiConfig();
         apiConfig.setPath(request.getPath());
         apiConfig.setMethod(request.getMethod().toUpperCase());
         apiConfig.setDescription(request.getDescription());
+
+        // v2 新字段
+        if (request.getStatusCode() != null) {
+            apiConfig.setStatusCode(request.getStatusCode());
+        }
+        if (request.getDelayMs() != null) {
+            apiConfig.setDelayMs(request.getDelayMs());
+        }
+        if (request.getEnabled() != null) {
+            apiConfig.setEnabled(request.getEnabled());
+        }
+        apiConfig.setResponseHeaders(responseBuilder.serializeResponseHeaders(request.getResponseHeaders()));
 
         for (FieldConfigDto fieldDto : request.getFields()) {
             FieldConfig field = toEntity(fieldDto, apiConfig, null);
@@ -56,16 +83,31 @@ public class ApiConfigService {
         }
 
         ApiConfig saved = apiConfigRepository.save(apiConfig);
+        responseBuilder.clearCache();
         return toResponse(saved);
     }
 
     @Transactional
+    @CacheEvict(value = {"apiConfigs", "apiConfigEntities"}, allEntries = true)
     public Optional<ApiConfigResponse> update(Long id, ApiConfigRequest request) {
+        log.info("更新 API 配置: id={}", id);
         return apiConfigRepository.findById(id)
                 .map(apiConfig -> {
                     apiConfig.setPath(request.getPath());
                     apiConfig.setMethod(request.getMethod().toUpperCase());
                     apiConfig.setDescription(request.getDescription());
+
+                    // v2 新字段
+                    if (request.getStatusCode() != null) {
+                        apiConfig.setStatusCode(request.getStatusCode());
+                    }
+                    if (request.getDelayMs() != null) {
+                        apiConfig.setDelayMs(request.getDelayMs());
+                    }
+                    if (request.getEnabled() != null) {
+                        apiConfig.setEnabled(request.getEnabled());
+                    }
+                    apiConfig.setResponseHeaders(responseBuilder.serializeResponseHeaders(request.getResponseHeaders()));
 
                     // 清除旧字段
                     apiConfig.getFields().clear();
@@ -76,14 +118,19 @@ public class ApiConfigService {
                         apiConfig.addField(field);
                     }
 
-                    return toResponse(apiConfigRepository.save(apiConfig));
+                    ApiConfigResponse response = toResponse(apiConfigRepository.save(apiConfig));
+                    responseBuilder.clearCache();
+                    return response;
                 });
     }
 
     @Transactional
+    @CacheEvict(value = {"apiConfigs", "apiConfigEntities"}, allEntries = true)
     public boolean delete(Long id) {
+        log.info("删除 API 配置: id={}", id);
         if (apiConfigRepository.existsById(id)) {
             apiConfigRepository.deleteById(id);
+            responseBuilder.clearCache();
             return true;
         }
         return false;
@@ -138,6 +185,10 @@ public class ApiConfigService {
         response.setPath(apiConfig.getPath());
         response.setMethod(apiConfig.getMethod());
         response.setDescription(apiConfig.getDescription());
+        response.setStatusCode(apiConfig.getStatusCode());
+        response.setResponseHeaders(responseBuilder.parseResponseHeaders(apiConfig.getResponseHeaders()));
+        response.setDelayMs(apiConfig.getDelayMs());
+        response.setEnabled(apiConfig.getEnabled());
         response.setCreatedAt(apiConfig.getCreatedAt());
         response.setUpdatedAt(apiConfig.getUpdatedAt());
         response.setFields(toFieldDtos(apiConfig.getFields(), null));

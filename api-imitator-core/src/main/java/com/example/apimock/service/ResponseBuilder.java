@@ -6,19 +6,29 @@ import com.example.apimock.entity.FieldType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
 public class ResponseBuilder {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final Logger log = LoggerFactory.getLogger(ResponseBuilder.class);
+    private final ObjectMapper objectMapper;
+
+    // ========== v2 性能优化：正则表达式缓存 ==========
     private static final Pattern PATH_PARAM_PATTERN = Pattern.compile("\\{([^}]+)\\}");
+    private final ConcurrentHashMap<String, Pattern> pathPatternCache = new ConcurrentHashMap<>();
+
+    // 注入 Spring 管理的 ObjectMapper 单例
+    public ResponseBuilder(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     public String buildResponse(ApiConfig apiConfig, Map<String, String> pathParams) {
         ObjectNode root = objectMapper.createObjectNode();
@@ -32,6 +42,7 @@ public class ResponseBuilder {
         try {
             return objectMapper.writeValueAsString(root);
         } catch (Exception e) {
+            log.error("构建响应失败", e);
             throw new RuntimeException("Failed to build response", e);
         }
     }
@@ -45,10 +56,20 @@ public class ResponseBuilder {
                 parent.put(name, value);
                 break;
             case INTEGER:
-                parent.put(name, value != null ? Long.parseLong(value) : 0L);
+                try {
+                    parent.put(name, value != null ? Long.parseLong(value) : 0L);
+                } catch (NumberFormatException e) {
+                    log.warn("整数字段解析失败: {} = {}, 使用默认值 0", name, value);
+                    parent.put(name, 0L);
+                }
                 break;
             case DOUBLE:
-                parent.put(name, value != null ? Double.parseDouble(value) : 0.0);
+                try {
+                    parent.put(name, value != null ? Double.parseDouble(value) : 0.0);
+                } catch (NumberFormatException e) {
+                    log.warn("浮点数字段解析失败: {} = {}, 使用默认值 0.0", name, value);
+                    parent.put(name, 0.0);
+                }
                 break;
             case BOOLEAN:
                 parent.put(name, value != null ? Boolean.parseBoolean(value) : false);
@@ -91,6 +112,7 @@ public class ResponseBuilder {
                     try {
                         arrayNode.addAll((ArrayNode) objectMapper.readTree(combined.toString()));
                     } catch (Exception e) {
+                        log.warn("数组 JSON 解析失败，使用字符串 fallback", e);
                         // Fallback: add as strings
                         for (FieldConfig child : childList) {
                             String childValue = resolveValue(child.getFieldValue(), pathParams);
@@ -134,21 +156,29 @@ public class ResponseBuilder {
         }
     }
 
+    /**
+     * v2 优化：使用缓存的正则表达式进行路径匹配
+     */
     public String matchPath(String configuredPath, String requestPath) {
         if (configuredPath.equals(requestPath)) {
             return configuredPath;
         }
 
-        String regex = configuredPath.replaceAll("\\{[^}]+\\}", "([^/]+)");
-        Pattern pattern = Pattern.compile("^" + regex + "$");
-        Matcher matcher = pattern.matcher(requestPath);
+        Pattern pattern = pathPatternCache.computeIfAbsent(configuredPath, k -> {
+            String regex = k.replaceAll("\\{[^}]+\\}", "([^/]+)");
+            return Pattern.compile("^" + regex + "$");
+        });
 
+        Matcher matcher = pattern.matcher(requestPath);
         if (matcher.matches()) {
             return configuredPath;
         }
         return null;
     }
 
+    /**
+     * v2 优化：复用 matchPath 的匹配结果，避免二次正则匹配
+     */
     public Map<String, String> extractPathParams(String configuredPath, String requestPath) {
         // Extract param names from the pattern
         List<String> paramNames = new ArrayList<>();
@@ -161,11 +191,13 @@ public class ResponseBuilder {
             return null;
         }
 
-        // Build regex with numbered groups
-        String regex = configuredPath.replaceAll("\\{[^}]+\\}", "([^/]+)");
-        Pattern pattern = Pattern.compile("^" + regex + "$");
-        Matcher matcher = pattern.matcher(requestPath);
+        // 使用缓存的正则
+        Pattern pattern = pathPatternCache.computeIfAbsent(configuredPath, k -> {
+            String regex = k.replaceAll("\\{[^}]+\\}", "([^/]+)");
+            return Pattern.compile("^" + regex + "$");
+        });
 
+        Matcher matcher = pattern.matcher(requestPath);
         if (matcher.matches()) {
             Map<String, String> result = new java.util.HashMap<>();
             for (int i = 0; i < paramNames.size(); i++) {
@@ -174,5 +206,43 @@ public class ResponseBuilder {
             return result;
         }
         return null;
+    }
+
+    /**
+     * v2 新增：解析响应头（JSON 字符串 -> Map）
+     */
+    public Map<String, String> parseResponseHeaders(String headersJson) {
+        if (headersJson == null || headersJson.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        try {
+            return objectMapper.readValue(headersJson, Map.class);
+        } catch (Exception e) {
+            log.warn("解析响应头失败: {}", headersJson, e);
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * v2 新增：序列化响应头（Map -> JSON 字符串）
+     */
+    public String serializeResponseHeaders(Map<String, String> headers) {
+        if (headers == null || headers.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(headers);
+        } catch (Exception e) {
+            log.warn("序列化响应头失败", e);
+            return null;
+        }
+    }
+
+    /**
+     * 清除缓存（配置变更时调用）
+     */
+    public void clearCache() {
+        pathPatternCache.clear();
+        log.info("路径匹配缓存已清除，当前缓存大小: {}", pathPatternCache.size());
     }
 }
