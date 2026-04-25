@@ -7,6 +7,7 @@ import com.example.apimock.entity.ApiConfig;
 import com.example.apimock.entity.FieldConfig;
 import com.example.apimock.entity.FieldType;
 import com.example.apimock.repository.ApiConfigRepository;
+import org.hibernate.Hibernate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
@@ -14,9 +15,9 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,6 +32,7 @@ public class ApiConfigService {
         this.responseBuilder = responseBuilder;
     }
 
+    @Transactional(readOnly = true)
     @Cacheable(value = "apiConfigs", key = "'all'")
     public List<ApiConfigResponse> findAll() {
         log.debug("查询所有 API 配置");
@@ -39,10 +41,81 @@ public class ApiConfigService {
                 .collect(Collectors.toList());
     }
 
-    @Cacheable(value = "apiConfigEntities", key = "'all'")
-    public List<ApiConfig> findAllEntities() {
-        log.debug("查询所有 API 配置实体");
-        return apiConfigRepository.findAll();
+    /**
+     * 在事务内查找匹配配置并构建响应
+     * 解决 Hibernate 懒加载和字段值丢失问题
+     */
+    @Transactional(readOnly = true)
+    public Optional<String> findAndBuildResponse(String requestPath, String requestMethod, Map<String,String> params) {
+        // 在事务内查询所有配置
+        List<ApiConfig> configs = apiConfigRepository.findAll();
+        
+        for (ApiConfig config : configs) {
+            // 检查路径匹配
+            if (pathMatches(config.getPath(), requestPath, requestMethod, config.getMethod(), params)) {
+                // 在事务内初始化所有字段
+                Hibernate.initialize(config.getFields());
+                initializeFields(config.getFields());
+                // 在事务内直接构建响应
+                return Optional.ofNullable(responseBuilder.buildResponse(config, params));
+            }
+        }
+        return Optional.empty();
+    }
+    
+    /**
+     * 路径匹配逻辑（从 Controller 移到 Service，保证在事务内）
+     */
+    private boolean pathMatches(String configPath, String requestPath, String requestMethod, String configMethod, Map<String,String> params) {
+        // 方法必须匹配
+        if (!configMethod.equalsIgnoreCase(requestMethod)) {
+            return false;
+        }
+        
+        // 精确路径匹配
+        if (configPath.equals(requestPath)) {
+            return true;
+        }
+        
+        // 路径参数匹配：如 /user/{id} 匹配 /user/123
+        String[] configParts = configPath.split("/");
+        String[] requestParts = requestPath.split("/");
+        
+        if (configParts.length != requestParts.length) {
+            return false;
+        }
+        
+        for (int i = 0; i < configParts.length; i++) {
+            String configPart = configParts[i];
+            String requestPart = requestParts[i];
+            
+            if (configPart.startsWith("{") && configPart.endsWith("}")) {
+                // 这是一个路径参数
+                String paramName = configPart.substring(1, configPart.length() - 1);
+                params.put(paramName, requestPart);
+            } else if (!configPart.equals(requestPart)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    private void initializeFields(java.util.Collection<FieldConfig> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return;
+        }
+        for (FieldConfig field : fields) {
+            // 强制 Hibernate 初始化所有字段
+            Hibernate.initialize(field);
+            String val = field.getFieldValue(); // 强制读取
+            log.info("初始化字段: {} = {}", field.getFieldName(), val);
+            // 初始化子项
+            if (field.getChildren() != null) {
+                Hibernate.initialize(field.getChildren());
+                initializeFields(field.getChildren());
+            }
+        }
     }
 
     @Cacheable(value = "apiConfigs", key = "#id")

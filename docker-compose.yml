@@ -1,0 +1,50 @@
+# ==========================================
+# API-Imitator v2 Docker Compose 部署文件
+# ==========================================
+# 一键启动：docker compose up -d
+# 查看日志：docker compose logs -f
+# 停止服务：docker compose down
+# ==========================================
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: api-mock-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: api_mock_2026
+      MYSQL_DATABASE: api_mock
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d
+    networks:
+      - api-mock-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-papi_mock_2026"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API-Imitator 应用
+  app:
+    build: .
+    container_name: api-mock-app
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      - api-mock-network
+
+volumes:
+  mysql_data:
+
+networks:
+  api-mock-network:
+    driver: bridge

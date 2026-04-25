@@ -4,6 +4,7 @@ import com.example.apimock.entity.ApiConfig;
 import com.example.apimock.entity.FieldConfig;
 import com.example.apimock.entity.FieldType;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
@@ -76,6 +77,7 @@ public class ResponseBuilder {
                 break;
             case OBJECT:
                 ObjectNode objectNode = parent.putObject(name);
+                log.info("对象字段 {} 有 {} 个子项", name, field.getChildren() != null ? field.getChildren().size() : 0);
                 for (FieldConfig child : field.getChildren()) {
                     buildField(child, objectNode, pathParams);
                 }
@@ -84,39 +86,29 @@ public class ResponseBuilder {
                 ArrayNode arrayNode = parent.putArray(name);
                 // 优先使用 children 构建数组
                 if (field.getChildren() != null && !field.getChildren().isEmpty()) {
-                    // Join children values and parse as JSON array
-                    StringBuilder combined = new StringBuilder("[");
-                    java.util.List<FieldConfig> childList = new java.util.ArrayList<>(field.getChildren());
-                    for (int i = 0; i < childList.size(); i++) {
-                        FieldConfig child = childList.get(i);
-                        String childValue = resolveValue(child.getFieldValue(), pathParams);
-                        if (childValue != null && !childValue.isEmpty()) {
-                            String trimmed = childValue.trim();
-                            if (trimmed.startsWith("{")) {
-                                // It's a JSON object string - remove surrounding quotes and unescape
-                                if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
-                                    trimmed = trimmed.substring(1, trimmed.length() - 1);
-                                    trimmed = trimmed.replace("\\\"", "\"").replace("\\\\", "\\");
-                                }
-                                combined.append(trimmed);
-                            } else {
-                                // Primitive value - quote it
-                                combined.append("\"").append(childValue.replace("\"", "\\\"")).append("\"");
+                    log.info("数组字段 {} 有 {} 个子项", name, field.getChildren().size());
+                    for (FieldConfig child : field.getChildren()) {
+                        // 如果是 OBJECT 类型且有 children，递归构建对象
+                        if (child.getFieldType() == FieldType.OBJECT && 
+                            child.getChildren() != null && !child.getChildren().isEmpty()) {
+                            log.info("  子项是 OBJECT 类型，有 {} 个子属性", child.getChildren().size());
+                            ObjectNode objNode = arrayNode.addObject();
+                            for (FieldConfig prop : child.getChildren()) {
+                                buildField(prop, objNode, pathParams);
                             }
-                        }
-                        if (i < childList.size() - 1) {
-                            combined.append(",");
-                        }
-                    }
-                    combined.append("]");
-                    try {
-                        arrayNode.addAll((ArrayNode) objectMapper.readTree(combined.toString()));
-                    } catch (Exception e) {
-                        log.warn("数组 JSON 解析失败，使用字符串 fallback", e);
-                        // Fallback: add as strings
-                        for (FieldConfig child : childList) {
+                        } else {
+                            // 其他类型用 value
                             String childValue = resolveValue(child.getFieldValue(), pathParams);
-                            arrayNode.add(childValue != null ? childValue : "");
+                            log.info("  子项 {} 值: {}", child.getFieldName(), childValue);
+                            if (childValue != null && !childValue.isEmpty()) {
+                                String trimmed = childValue.trim();
+                                try {
+                                    JsonNode node = objectMapper.readTree(trimmed);
+                                    arrayNode.add(node);
+                                } catch (Exception e) {
+                                    arrayNode.add(childValue);
+                                }
+                            }
                         }
                     }
                 } else if (value != null && !value.isEmpty()) {

@@ -11,6 +11,9 @@ import java.util.Optional;
 @Repository
 public interface ApiConfigRepository extends JpaRepository<ApiConfig, Long> {
 
-    @Query("SELECT a FROM ApiConfig a LEFT JOIN FETCH a.fields f LEFT JOIN FETCH f.children WHERE a.path = :path AND a.method = :method")
+    @Query("SELECT a FROM ApiConfig a LEFT JOIN FETCH a.fields f LEFT JOIN FETCH f.children c1 LEFT JOIN FETCH c1.children c2 LEFT JOIN FETCH c2.children c3 WHERE a.path = :path AND a.method = :method")
     Optional<ApiConfig> findByPathAndMethodWithFields(@Param("path") String path, @Param("method") String method);
+
+    @Query("SELECT DISTINCT a FROM ApiConfig a LEFT JOIN FETCH a.fields f LEFT JOIN FETCH f.children c1 LEFT JOIN FETCH c1.children c2 LEFT JOIN FETCH c2.children c3")
+    java.util.List<ApiConfig> findAllWithFields();
 }
