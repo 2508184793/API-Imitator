@@ -1020,13 +1020,14 @@
                 const itemsDiv = fieldDiv.querySelector('.array-items');
                 fieldData.arrayItems.forEach(item => addArrayItem(itemsDiv, item));
             } else if (isArray && fieldData?.children?.length > 0) {
-                // JSON object array stored as children - render each child as an array-item
+                // JSON object array stored as children - each child is an OBJECT array item
                 const itemsDiv = fieldDiv.querySelector('.array-items');
                 fieldData.children.forEach(child => {
                     if (child.type === 'STRING' || child.type === 'INTEGER' || child.type === 'DOUBLE' || child.type === 'BOOLEAN') {
                         addArrayItem(itemsDiv, { value: child.value });
                     } else {
-                        addChildField(fieldDiv.querySelector('.children'), child);
+                        // OBJECT or ARRAY array item - create an array item and add its children inside
+                        addArrayItem(itemsDiv, child);
                     }
                 });
             } else if (fieldData?.children?.length > 0) {
@@ -1162,18 +1163,58 @@
 
             const itemDiv = document.createElement('div');
             itemDiv.className = 'array-item';
-            const displayValue = itemData ? itemData.value || '' : '';
-            const storedValue = itemData ? itemData.value || '' : '';
-            itemDiv.dataset.storedValue = storedValue;
-            // Escape quotes for HTML attribute context
-            // Escape quotes for HTML attribute context so browser parses the attribute correctly
-            const escapedForAttr = displayValue.replace(/"/g, '&quot;');
-            const displayForInput = truncateForDisplay(escapedForAttr, 400);
-            itemDiv.innerHTML = `
-                <input type="text" class="value" placeholder="数组项值" value="${displayForInput}">
-                <button type="button" class="btn btn-danger btn-icon" onclick="removeArrayItem(this)">✕</button>
-            `;
-            container.appendChild(itemDiv);
+            
+            // Check if this is a complex type (OBJECT/ARRAY) or simple value
+            const isObjectType = itemData && (itemData.type === 'OBJECT' || itemData.type === 'ARRAY' || itemData.children);
+            
+            if (isObjectType) {
+                // Complex type (OBJECT) - no value input, instead render children
+                const displayValue = itemData.value || '';
+                const storedValue = itemData.value || '';
+                itemDiv.dataset.storedValue = storedValue;
+                itemDiv.dataset.type = itemData.type || 'OBJECT';
+                // Set empty name placeholder - it's an array element
+                itemDiv.innerHTML = `
+                    <input type="text" class="name" placeholder="数组项" value="${escapeHtml(itemData.name || '')}" style="width:120px;">
+                    <select class="type" style="width:100px;">
+                        <option value="STRING" ${itemData?.type === 'STRING' ? 'selected' : ''}>STRING</option>
+                        <option value="INTEGER" ${itemData?.type === 'INTEGER' ? 'selected' : ''}>INTEGER</option>
+                        <option value="DOUBLE" ${itemData?.type === 'DOUBLE' ? 'selected' : ''}>DOUBLE</option>
+                        <option value="BOOLEAN" ${itemData?.type === 'BOOLEAN' ? 'selected' : ''}>BOOLEAN</option>
+                        <option value="OBJECT" ${itemData?.type === 'OBJECT' || !itemData?.type ? 'selected' : ''}>OBJECT</option>
+                        <option value="ARRAY" ${itemData?.type === 'ARRAY' ? 'selected' : ''}>ARRAY</option>
+                    </select>
+                    <button type="button" class="btn btn-primary btn-icon" onclick="addChildToArrItem(this)">+子</button>
+                    <button type="button" class="btn btn-danger btn-icon" onclick="removeArrayItem(this)">✕</button>
+                    <div class="children"></div>
+                `;
+                container.appendChild(itemDiv);
+                
+                // Render children if available
+                if (itemData.children && itemData.children.length > 0) {
+                    const childrenDiv = itemDiv.querySelector('.children');
+                    itemData.children.forEach(child => addChildField(childrenDiv, child));
+                }
+                // Add type change handler
+                const typeSelect = itemDiv.querySelector('select.type');
+                typeSelect.onchange = function() {
+                    handleArrayItemTypeChange(itemDiv, this.value);
+                };
+            } else {
+                // Simple value type
+                const displayValue = itemData ? itemData.value || '' : '';
+                const storedValue = itemData ? itemData.value || '' : '';
+                itemDiv.dataset.storedValue = storedValue;
+                // Escape quotes for HTML attribute context
+                // Escape quotes for HTML attribute context so browser parses the attribute correctly
+                const escapedForAttr = displayValue.replace(/"/g, '&quot;');
+                const displayForInput = truncateForDisplay(escapedForAttr, 400);
+                itemDiv.innerHTML = `
+                    <input type="text" class="value" placeholder="数组项值" value="${displayForInput}">
+                    <button type="button" class="btn btn-danger btn-icon" onclick="removeArrayItem(this)">✕</button>
+                `;
+                container.appendChild(itemDiv);
+            }
 
             // Add new add button
             const addBtn = document.createElement('button');
@@ -1192,6 +1233,17 @@
             if (container.querySelectorAll('.array-item').length === 0) {
                 addArrayItem(container);
             }
+        }
+
+        function addChildToArrItem(btn) {
+            const itemDiv = btn.closest('.array-item');
+            const childrenDiv = itemDiv.querySelector('.children');
+            addChildField(childrenDiv);
+        }
+
+        function handleArrayItemTypeChange(itemDiv, newType) {
+            // Not implemented for now - just update the dataset
+            itemDiv.dataset.type = newType;
         }
 
         function addChildField(container, childData = null) {
@@ -1220,13 +1272,14 @@
                 const itemsDiv = childDiv.querySelector('.array-items');
                 childData.arrayItems.forEach(item => addArrayItem(itemsDiv, item));
             } else if (isArray && childData?.children?.length > 0) {
-                // JSON object array stored as children - render each child as an array-item
+                // JSON object array stored as children - each child is an OBJECT array item
                 const itemsDiv = childDiv.querySelector('.array-items');
                 childData.children.forEach(grandchild => {
                     if (grandchild.type === 'STRING' || grandchild.type === 'INTEGER' || grandchild.type === 'DOUBLE' || grandchild.type === 'BOOLEAN') {
                         addArrayItem(itemsDiv, { value: grandchild.value });
                     } else {
-                        addChildField(childDiv.querySelector('.children'), grandchild);
+                        // OBJECT or ARRAY array item - create an array item and add its children inside
+                        addArrayItem(itemsDiv, grandchild);
                     }
                 });
             } else if (childData?.children?.length > 0) {
@@ -1282,22 +1335,37 @@
 
             if (type === 'ARRAY') {
                 field.arrayItems = [];
+                field.children = [];
                 row.querySelectorAll(':scope > .array-items > .array-item').forEach(item => {
-                    // Read from data-stored-value attribute to preserve full JSON strings
-                    const value = item.dataset.storedValue || item.querySelector('input.value').value;
-                    if (value) field.arrayItems.push({ value });
-                });
-                // Also collect children (for JSON object arrays stored as item children)
-                const childRows = row.querySelectorAll(':scope > .children > .child-row');
-                if (childRows.length > 0 && field.arrayItems.length === 0) {
-                    // No arrayItems found, check if children are item nodes with JSON values
-                    const allChildren = Array.from(childRows).map(childRow => collectFieldData(childRow)).filter(f => f.name);
-                    if (allChildren.length > 0 && allChildren.every(c => c.type === 'STRING' || c.type === 'INTEGER' || c.type === 'DOUBLE' || c.type === 'BOOLEAN')) {
-                        field.arrayItems = allChildren.map(c => ({ value: c.value }));
-                    } else {
-                        field.children = allChildren;
+                    // Check if this is a complex type array item (OBJECT/ARRAY) with type select
+                    const typeSelect = item.querySelector('select.type');
+                    const valueInput = item.querySelector('input.value');
+                    
+                    if (typeSelect) {
+                        // Complex type (OBJECT/ARRAY) array item
+                        const itemType = typeSelect.value;
+                        const itemName = item.querySelector('input.name').value.trim();
+                        const itemField = {
+                            name: itemName,
+                            type: itemType
+                        };
+                        // Collect children for this array item
+                        const childRows = item.querySelectorAll(':scope > .children > .child-row');
+                        if (childRows.length > 0) {
+                            itemField.children = Array.from(childRows).map(childRow => collectFieldData(childRow)).filter(f => f.name);
+                        }
+                        // Add to field's children (for object arrays stored as children)
+                        field.children.push(itemField);
+                    } else if (valueInput) {
+                        // Simple value type array item
+                        const value = item.dataset.storedValue || valueInput.value;
+                        if (value) field.arrayItems.push({ value });
                     }
-                }
+                });
+                // If no complex children found, remove the empty children array
+                if (field.children.length === 0) delete field.children;
+                // If no arrayItems found, remove the empty arrayItems array
+                if (field.arrayItems.length === 0) delete field.arrayItems;
             } else {
                 field.value = row.querySelector('.value').value;
                 const childRows = row.querySelectorAll(':scope > .children > .child-row');

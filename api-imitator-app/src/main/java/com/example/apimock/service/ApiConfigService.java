@@ -164,6 +164,25 @@ public class ApiConfigService {
     @CacheEvict(value = {"apiConfigs", "apiConfigEntities"}, allEntries = true)
     public Optional<ApiConfigResponse> update(Long id, ApiConfigRequest request) {
         log.info("更新 API 配置: id={}", id);
+        // 调试：打印 fields 的详细结构
+        for (FieldConfigDto field : request.getFields()) {
+            log.info("字段: name={}, type={}, hasChildren={}, childrenSize={}", 
+                field.getName(), field.getType(), 
+                field.getChildren() != null,
+                field.getChildren() != null ? field.getChildren().size() : 0);
+            if (field.getChildren() != null) {
+                for (FieldConfigDto child : field.getChildren()) {
+                    log.info("  子字段: name={}, type={}, hasChildren={}", 
+                        child.getName(), child.getType(), 
+                        child.getChildren() != null && !child.getChildren().isEmpty());
+                    if (child.getChildren() != null) {
+                        for (FieldConfigDto grandchild : child.getChildren()) {
+                            log.info("    孙字段: name={}, type={}", grandchild.getName(), grandchild.getType());
+                        }
+                    }
+                }
+            }
+        }
         return apiConfigRepository.findById(id)
                 .map(apiConfig -> {
                     apiConfig.setPath(request.getPath());
@@ -216,29 +235,39 @@ public class ApiConfigService {
         field.setApiConfig(apiConfig);
         field.setParentField(parent);
 
-        // 处理 ARRAY 类型的 arrayItems
-        if (dto.getType() == FieldType.ARRAY && dto.getArrayItems() != null && !dto.getArrayItems().isEmpty()) {
-            // 判断是否是简单的逗号分隔值（基本类型数组）还是 JSON 对象数组
-            String firstValue = dto.getArrayItems().get(0).getValue();
-            boolean hasJsonObjects = firstValue != null && (firstValue.trim().startsWith("{") || firstValue.trim().startsWith("["));
+        // 处理 ARRAY 类型
+        if (dto.getType() == FieldType.ARRAY) {
+            // 优先处理 arrayItems（基本类型数组或 JSON 对象数组）
+            if (dto.getArrayItems() != null && !dto.getArrayItems().isEmpty()) {
+                // 判断是否是简单的逗号分隔值（基本类型数组）还是 JSON 对象数组
+                String firstValue = dto.getArrayItems().get(0).getValue();
+                boolean hasJsonObjects = firstValue != null && (firstValue.trim().startsWith("{") || firstValue.trim().startsWith("["));
 
-            if (hasJsonObjects) {
-                // JSON 对象数组：为每个项创建子节点
-                for (FieldConfigDto.ArrayItemDto item : dto.getArrayItems()) {
-                    FieldConfig itemChild = new FieldConfig();
-                    itemChild.setFieldName("item");
-                    itemChild.setFieldType(FieldType.STRING);
-                    itemChild.setFieldValue(item.getValue());
-                    itemChild.setApiConfig(apiConfig);
-                    itemChild.setParentField(field);
-                    field.getChildren().add(itemChild);
+                if (hasJsonObjects) {
+                    // JSON 对象数组：为每个项创建子节点
+                    for (FieldConfigDto.ArrayItemDto item : dto.getArrayItems()) {
+                        FieldConfig itemChild = new FieldConfig();
+                        itemChild.setFieldName("item");
+                        itemChild.setFieldType(FieldType.STRING);
+                        itemChild.setFieldValue(item.getValue());
+                        itemChild.setApiConfig(apiConfig);
+                        itemChild.setParentField(field);
+                        field.getChildren().add(itemChild);
+                    }
+                } else {
+                    // 基本类型数组：用逗号分隔存储
+                    String arrayValue = dto.getArrayItems().stream()
+                            .map(FieldConfigDto.ArrayItemDto::getValue)
+                            .collect(Collectors.joining(","));
+                    field.setFieldValue(arrayValue);
                 }
-            } else {
-                // 基本类型数组：用逗号分隔存储
-                String arrayValue = dto.getArrayItems().stream()
-                        .map(FieldConfigDto.ArrayItemDto::getValue)
-                        .collect(Collectors.joining(","));
-                field.setFieldValue(arrayValue);
+            }
+            // 也处理 ARRAY 的 children（数组嵌套对象的情况）
+            if (dto.getChildren() != null && !dto.getChildren().isEmpty()) {
+                for (FieldConfigDto childDto : dto.getChildren()) {
+                    FieldConfig child = toEntity(childDto, apiConfig, field);
+                    field.getChildren().add(child);
+                }
             }
         } else {
             field.setFieldValue(dto.getValue());

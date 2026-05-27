@@ -87,28 +87,28 @@ public class ResponseBuilder {
                 // 优先使用 children 构建数组
                 if (field.getChildren() != null && !field.getChildren().isEmpty()) {
                     log.info("数组字段 {} 有 {} 个子项", name, field.getChildren().size());
-                    for (FieldConfig child : field.getChildren()) {
-                        // 如果是 OBJECT 类型且有 children，递归构建对象
-                        if (child.getFieldType() == FieldType.OBJECT && 
-                            child.getChildren() != null && !child.getChildren().isEmpty()) {
-                            log.info("  子项是 OBJECT 类型，有 {} 个子属性", child.getChildren().size());
-                            ObjectNode objNode = arrayNode.addObject();
-                            for (FieldConfig prop : child.getChildren()) {
-                                buildField(prop, objNode, pathParams);
-                            }
-                        } else {
-                            // 其他类型用 value
-                            String childValue = resolveValue(child.getFieldValue(), pathParams);
-                            log.info("  子项 {} 值: {}", child.getFieldName(), childValue);
-                            if (childValue != null && !childValue.isEmpty()) {
-                                String trimmed = childValue.trim();
-                                try {
-                                    JsonNode node = objectMapper.readTree(trimmed);
-                                    arrayNode.add(node);
-                                } catch (Exception e) {
-                                    arrayNode.add(childValue);
+                    
+                    // 先检查是不是有 OBJECT 类型的子项（支持数组中有多个对象）
+                    boolean hasObjectChild = field.getChildren().stream()
+                        .anyMatch(c -> c.getFieldType() == FieldType.OBJECT);
+                    
+                    if (hasObjectChild) {
+                        // 方式1：每个 child 是一个 OBJECT，代表数组中的一个元素
+                        for (FieldConfig child : field.getChildren()) {
+                            if (child.getFieldType() == FieldType.OBJECT && 
+                                child.getChildren() != null && !child.getChildren().isEmpty()) {
+                                ObjectNode objNode = arrayNode.addObject();
+                                for (FieldConfig prop : child.getChildren()) {
+                                    buildField(prop, objNode, pathParams);
                                 }
                             }
+                        }
+                    } else {
+                        // 方式2：所有 children 合起来构成一个对象的属性
+                        // 这是对象数组的简化模式：children 直接是对象的属性，只生成一个对象
+                        ObjectNode objNode = arrayNode.addObject();
+                        for (FieldConfig child : field.getChildren()) {
+                            buildField(child, objNode, pathParams);
                         }
                     }
                 } else if (value != null && !value.isEmpty()) {

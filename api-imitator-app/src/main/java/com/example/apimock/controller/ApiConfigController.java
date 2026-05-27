@@ -26,7 +26,7 @@ public class ApiConfigController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiConfigResponse> findById(@PathVariable Long id) {
+    public ResponseEntity<ApiConfigResponse> getById(@PathVariable Long id) {
         return apiConfigService.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
