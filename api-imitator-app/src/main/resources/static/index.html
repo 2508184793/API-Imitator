@@ -1088,13 +1088,18 @@
                 return { name: key, type: 'STRING', value: 'null' };
             }
             if (Array.isArray(value)) {
-                const field = { name: key, type: 'ARRAY', arrayItems: [] };
+                const field = { name: key, type: 'ARRAY', children: [] };
                 value.forEach(item => {
                     if (typeof item === 'object' && item !== null) {
-                        // Object in array - store as JSON string for now
-                        field.arrayItems.push({ value: JSON.stringify(item) });
+                        // Object in array - create an OBJECT array item
+                        const objItem = { name: '', type: 'OBJECT', children: [] };
+                        Object.entries(item).forEach(([k, v]) => {
+                            objItem.children.push(jsonValueToField(k, v));
+                        });
+                        field.children.push(objItem);
                     } else {
-                        field.arrayItems.push({ value: String(item) });
+                        // Simple value - store as array item
+                        field.children.push({ value: String(item), type: getType(item) });
                     }
                 });
                 return field;
@@ -1367,7 +1372,10 @@
                 // If no arrayItems found, remove the empty arrayItems array
                 if (field.arrayItems.length === 0) delete field.arrayItems;
             } else {
-                field.value = row.querySelector('.value').value;
+                if (type !== 'OBJECT') {
+                    const valueInput = row.querySelector('.value');
+                    field.value = valueInput ? valueInput.value : '';
+                }
                 const childRows = row.querySelectorAll(':scope > .children > .child-row');
                 if (childRows.length > 0) {
                     field.children = Array.from(childRows).map(childRow => collectFieldData(childRow)).filter(f => f.name);

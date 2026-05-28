@@ -95,11 +95,12 @@ public class ResponseBuilder {
                     if (hasObjectChild) {
                         // 方式1：每个 child 是一个 OBJECT，代表数组中的一个元素
                         for (FieldConfig child : field.getChildren()) {
-                            if (child.getFieldType() == FieldType.OBJECT && 
-                                child.getChildren() != null && !child.getChildren().isEmpty()) {
+                            if (child.getFieldType() == FieldType.OBJECT) {
                                 ObjectNode objNode = arrayNode.addObject();
-                                for (FieldConfig prop : child.getChildren()) {
-                                    buildField(prop, objNode, pathParams);
+                                if (child.getChildren() != null && !child.getChildren().isEmpty()) {
+                                    for (FieldConfig prop : child.getChildren()) {
+                                        buildField(prop, objNode, pathParams);
+                                    }
                                 }
                             }
                         }
